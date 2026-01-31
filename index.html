@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Kindle Landscape Dash</title>
+    <style>
+        /* 强制黑白高对比度 */
+        body {
+            font-family: "Helvetica", "Arial", sans-serif;
+            background-color: white;
+            color: black;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* 防止出现滚动条 */
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左侧：天气与时间 */
+        #left-panel {
+            width: 35%;
+            border-right: 4px solid black;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #temp { font-size: 100px; font-weight: bold; line-height: 1; }
+        #condition { font-size: 36px; margin-top: 10px; font-weight: bold; }
+        #location { font-size: 24px; margin-bottom: 30px; }
+        #clock { font-size: 48px; border-top: 2px solid black; padding-top: 20px; }
+
+        /* 右侧：日历 */
+        #right-panel {
+            width: 65%;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #month-header {
+            font-size: 42px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td {
+            border: 2px solid black;
+            text-align: center;
+            padding: 15px 5px;
+            font-size: 32px; /* 增大字号方便阅读 */
+        }
+        th { background-color: #eee; font-size: 20px; }
+        .today { background-color: black; color: white; font-weight: bold; }
+        .empty { border: none; } /* 美化空单元格 */
+
+        #update-tag {
+            position: absolute;
+            bottom: 10px;
+            right: 20px;
+            font-size: 14px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="left-panel">
+        <div id="location">当前天气</div>
+        <div id="temp">--°C</div>
+        <div id="condition">加载中...</div>
+        <div id="clock">--:--</div>
+    </div>
+
+    <div id="right-panel">
+        <div id="month-header">--年--月</div>
+        <table id="calendar">
+            <thead>
+                <tr>
+                    <th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th>
+                </tr>
+            </thead>
+            <tbody id="calendar-body"></tbody>
+        </table>
+    </div>
+
+    <div id="update-tag">Last Update: <span id="refresh-time">--</span></div>
+
+    <script>
+        // 配置：由于你在特雷霍特 (Terre Haute)，已为你填好当地坐标
+        var LAT = "39.46"; 
+        var LON = "-87.41";
+
+        function updateAll() {
+            var now = new Date();
+            
+            // 1. 更新时钟
+            var hh = now.getHours();
+            var mm = now.getMinutes();
+            document.getElementById('clock').innerText = (hh<10?'0':'')+hh + ":" + (mm<10?'0':'')+mm;
+            document.getElementById('refresh-time').innerText = now.toLocaleTimeString();
+
+            // 2. 更新日历
+            generateCalendar(now);
+
+            // 3. 更新天气
+            getWeather();
+        }
+
+        function getWeather() {
+            var url = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON + "&current_weather=true";
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", url, true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState == 4 && xhr.status == 200) {
+                    var data = JSON.parse(xhr.responseText);
+                    document.getElementById('temp').innerText = Math.round(data.current_weather.temperature) + "°C";
+                    document.getElementById('condition').innerText = interpretWMO(data.current_weather.weathercode);
+                }
+            };
+            xhr.send();
+        }
+
+        function interpretWMO(code) {
+            var codes = {0:"晴朗", 1:"晴间多云", 2:"多云", 3:"阴天", 45:"有雾", 48:"霾", 51:"毛毛雨", 61:"小雨", 63:"中雨", 65:"大雨", 71:"小雪", 95:"雷雨"};
+            return codes[code] || "未知";
+        }
+
+        function generateCalendar(now) {
+            var year = now.getFullYear();
+            var month = now.getMonth();
+            var today = now.getDate();
+
+            document.getElementById('month-header').innerText = year + "年 " + (month + 1) + "月";
+
+            var firstDay = new Date(year, month, 1).getDay();
+            var daysInMonth = new Date(year, month + 1, 0).getDate();
+            var tableBody = document.getElementById("calendar-body");
+            tableBody.innerHTML = "";
+
+            var date = 1;
+            for (var i = 0; i < 6; i++) {
+                var row = document.createElement("tr");
+                for (var j = 0; j < 7; j++) {
+                    var cell = document.createElement("td");
+                    if (i === 0 && j < firstDay) {
+                        cell.className = "empty";
+                    } else if (date > daysInMonth) {
+                        cell.className = "empty";
+                    } else {
+                        cell.innerText = date;
+                        if (date === today && now.getMonth() === month) cell.className = "today";
+                        date++;
+                    }
+                    row.appendChild(cell);
+                }
+                tableBody.appendChild(row);
+                if (date > daysInMonth) break;
+            }
+        }
+
+        updateAll();
+        // 每 15 分钟全局刷新一次
+        setInterval(updateAll, 900000);
+    </script>
+</body>
+</html>
